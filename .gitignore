@@ -33,6 +33,11 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# secrets: Google service-account JSON keys (app reads GOOGLE_PRIVATE_KEY from .env instead)
+*-service-account*.json
+wr-extractor-*.json
+*.gcp.json
+
 # vercel
 .vercel
 

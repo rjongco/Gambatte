@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# gambatte
 
-## Getting Started
+A single-user, self-hosted **time-tracking calendar**. It pulls your assigned,
+in-progress cards from one Trello board and lets you drag them onto a Gantt-style
+two-day grid to record *when* and *how long* each task was actually worked on.
+Trello is a **read-only** source; all plotting data lives in a local Postgres DB.
 
-First, run the development server:
+With one click you can also **export the recorded time to a Google Spreadsheet**
+(see [Google Sheets export](#google-sheets-export)).
+
+## Stack
+
+- **Next.js 16** (App Router) · **React 19** · **Tailwind v4**
+- **Postgres** via **Drizzle ORM** (migrations with `drizzle-kit`)
+- **TanStack Query** on the client
+- **Vitest** for the pure scheduling logic (`lib/resolve`, `lib/time`, `lib/lanes`)
+
+## Prerequisites
+
+- Node 20+ and npm (local dev), or Docker Desktop (containerized).
+- A Trello account with a personal API key + token.
+- *(Optional, for export)* a Google Cloud project + service account.
+
+## Configuration
+
+Copy `.env.example` to `.env` and fill it in. All secrets are read **server-side
+only** and never reach the browser.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Trello (required)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Purpose |
+|---|---|
+| `TRELLO_KEY` / `TRELLO_TOKEN` | Personal API key + token from <https://trello.com/power-ups/admin> |
+| `TRELLO_BOARD_ID` | The board to read cards from |
+| `TRELLO_LIST_IDS` | Comma-separated source lists (e.g. In-progress + For Review) |
+| `TRELLO_MEMBER_ID` | Only cards assigned to this member are shown |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `TRELLO_KEY` + `TRELLO_TOKEN` first, start the app, then open
+`GET /api/trello/meta` to list the board's list + member IDs and fill in the rest.
 
-## Learn More
+### Google Sheets export (optional)
 
-To learn more about Next.js, take a look at the following resources:
+| Variable | Purpose |
+|---|---|
+| `GOOGLE_SHEETS_SPREADSHEET_ID` | The target spreadsheet's ID (from its URL) |
+| `GOOGLE_SHEETS_TEMPLATE_TITLE` | Name of the template tab to duplicate (default `Template`) |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | The service account's email |
+| `GOOGLE_PRIVATE_KEY` | The service account's private key, single-line with literal `\n` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+One-time setup:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. In Google Cloud: create a project → **enable the Google Sheets API** → create a
+   **service account** → generate a **JSON key**.
+2. **Share the spreadsheet** with the service-account email as **Editor**.
+3. Create a tab named to match `GOOGLE_SHEETS_TEMPLATE_TITLE` (default `Template`)
+   with the header row and column formats you want; the export duplicates it.
+4. Put the four variables above in `.env`. Paste the key on one line, keeping the
+   `\n` escapes (the app converts them to real newlines).
 
-## Deploy on Vercel
+> The Google Sheets API and service accounts are **free** — Google meters them with
+> rate quotas, not billing. The JSON key file itself is **not** used by the app and
+> should not be committed (it's git-/docker-ignored); delete it after copying the
+> key into `.env`, and rotate the key if it was ever exposed.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Running
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Local (with Docker Postgres)
+
+```bash
+npm install
+docker compose up -d db          # Postgres on :5432
+npm run db:migrate               # apply Drizzle migrations
+npm run dev                      # http://localhost:3000
+```
+
+### Fully containerized
+
+```bash
+# Production image (builds the standalone server, runs migrations, then the app):
+docker compose up --build
+
+# Dev with live reload (bind-mounted source):
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+The app is served on <http://localhost:3000>.
+
+## Usage
+
+- **Tasks** sidebar lists your assigned in-progress cards. Drag a card onto a day to
+  record a time bar; drag edges to resize, drag the body to move (snaps to 30 min).
+- **◀ / ▶** slide the two-day window; **Today** jumps back to now.
+- **Settings** sets the day start/end bounds and the night/day theme.
+- **Submit** opens the export dialog (see below).
+
+### Google Sheets export
+
+Click **Submit**, pick a **date range**, and confirm. The app:
+
+- aggregates one row per card with time plotted in that range,
+- writes **Task**, **Start Date**, **End Date**, **Actual Hours**, and a **Variance**
+  formula into a **new tab named after the range** (e.g. `Jun 8 – Jun 14, 2026`),
+  leaving Description / Estimated Hours / Note blank for you to fill in,
+- **replaces** the tab if you re-run the exact same range; a different (even
+  overlapping) range creates a separate tab. The template tab and other tabs are
+  never modified.
+
+## Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start the dev server |
+| `npm run build` / `npm start` | Production build / serve |
+| `npm test` | Run the Vitest suites |
+| `npm run db:generate` | Generate a migration from `db/schema.ts` |
+| `npm run db:migrate` | Apply pending migrations |
+
+## Project layout
+
+- `app/` — App Router pages + API route handlers (`app/api/**`)
+- `components/` — client UI (Scheduler, DayGrid, TaskBar, dialogs, …)
+- `lib/` — pure logic + server helpers (`resolve`, `time`, `lanes`, `trello`,
+  `sheets`, `store`, `env`)
+- `db/` — Drizzle schema, client, and migrations

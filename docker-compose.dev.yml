@@ -1,0 +1,39 @@
+# Dev override: bind-mount the source and run `next dev` with live reload.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# (db + migrate from the base file still apply; only their images/commands change.)
+
+services:
+  db:
+      image: postgres:16-alpine
+      container_name: gambatte_db
+      restart: unless-stopped
+      environment:
+        POSTGRES_USER: gambatte
+        POSTGRES_PASSWORD: gambatte
+        POSTGRES_DB: gambatte
+      ports:
+        - "5432:5432"
+      volumes:
+        - gambatte_pgdata:/var/lib/postgresql/data
+  # Run migrations from the lighter `dev` image instead of a full prod build.
+  migrate:
+    build:
+      target: dev
+    command: npm run db:migrate
+
+  app:
+    build:
+      target: dev
+    command: ["npx", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+    restart: "no"
+    environment:
+      # DB lives on the compose network, not localhost.
+      DATABASE_URL: postgres://gambatte:gambatte@db:5432/gambatte
+      NODE_ENV: development
+    volumes:
+      # Live source from the host…
+      - .:/app
+      # …but keep the image's installed node_modules and build cache
+      # (anonymous volumes shadow the bind mount, avoiding host/OS mismatches).
+      - /app/node_modules
+      - /app/.next

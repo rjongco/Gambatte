@@ -1,26 +1,74 @@
 @import "tailwindcss";
 
+/* Palette lives in a plain :root (not @theme) so the day-mode override below
+   wins the cascade — Tailwind's @theme vars sit in a layer that outranks
+   unlayered selectors. Night is the default. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  color-scheme: dark;
+  --color-bg: #0f1113;
+  --color-surface: #16181c;
+  --color-surface-2: #1d2024;
+  --color-line: #282c32;
+  --color-line-soft: #20242a;
+  --color-text: #e6e8ea;
+  --color-muted: #9aa0a6;
+  --color-faint: #6b7177;
+  --color-accent: #7c9cff;
+  --color-accent-dim: #2a3354;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Day mode overrides. */
+html[data-theme="day"] {
+  color-scheme: light;
+  --color-bg: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #eef1f5;
+  --color-line: #d6dbe2;
+  --color-line-soft: #e7eaef;
+  --color-text: #1a1d21;
+  --color-muted: #5a626b;
+  --color-faint: #939aa3;
+  --color-accent: #3b5bdb;
+  --color-accent-dim: #c2cdf5;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(124, 156, 255, 0.06), transparent 60%),
+    var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-theme="day"] body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(59, 91, 219, 0.07), transparent 60%),
+    var(--color-bg);
+}
+
+/* thin, unobtrusive scrollbars for the dark surface */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 8px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono), ui-monospace, monospace;
 }

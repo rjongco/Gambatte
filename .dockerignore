@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+.env
+.env.local
+*-service-account*.json
+wr-extractor-*.json
+*.gcp.json
+.playwright-mcp
+Dockerfile
+.dockerignore
+docker-compose*.yml
+README.md
