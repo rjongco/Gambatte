@@ -38,6 +38,11 @@ yarn-error.log*
 wr-extractor-*.json
 *.gcp.json
 
+# database dumps (data-only backups produced by scripts/db-dump.sh)
+*.sql.dump
+gambatte_data.sql
+*_data.sql
+
 # vercel
 .vercel
 

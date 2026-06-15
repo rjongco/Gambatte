@@ -23,6 +23,7 @@ services:
     build:
       context: .
       target: builder
+    image: ghcr.io/rjongco/gambatte-migrate:latest
     container_name: gambatte_migrate
     command: npm run db:migrate
     environment:
@@ -35,6 +36,7 @@ services:
     build:
       context: .
       target: runner
+    image: ghcr.io/rjongco/gambatte-app:latest
     container_name: gambatte_app
     restart: unless-stopped
     ports:
