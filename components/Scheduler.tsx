@@ -15,7 +15,7 @@ import { SettingsDialog } from "./SettingsDialog";
 
 const FALLBACK: Settings = { dayStartMinute: 480, dayEndMinute: 1440 };
 
-export function Scheduler() {
+export function Scheduler({ authEnabled = false }: { authEnabled?: boolean }) {
   const qc = useQueryClient();
   const [windowStart, setWindowStart] = useState(today());
   const days: [string, string] = [windowStart, shiftDay(windowStart, 1)];
@@ -83,6 +83,11 @@ export function Scheduler() {
 
   const onDrop = (p: DropPayload) => place.mutate(p);
 
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
+
   return (
     <ThemeProvider theme={theme}>
     <DragProvider onDrop={onDrop} onReject={showToast}>
@@ -103,6 +108,7 @@ export function Scheduler() {
             onToday={() => setWindowStart(today())}
             onOpenExport={() => setExportOpen(true)}
             onOpenSettings={() => setSettingsOpen(true)}
+            onLogout={authEnabled ? logout : undefined}
           />
 
           {windowQ.data ? (

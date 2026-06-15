@@ -3,13 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 7431",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 7431",
     "lint": "eslint",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:ensure": "node scripts/ensure-db.mjs",
+    "db:migrate": "drizzle-kit migrate",
+    "db:setup": "node scripts/ensure-db.mjs && drizzle-kit migrate"
   },
   "dependencies": {
     "@googleapis/sheets": "^13.0.2",

@@ -1,0 +1,61 @@
+# Production stack: Postgres lives OUTSIDE Docker (an existing server), so there
+# is no `db` service or volume here — only the one-shot `migrate` job and the app.
+#
+#   docker compose -f docker-compose.prod.yml pull        # or build
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# The external Postgres connection defaults to the staging server below; override
+# any of these from the host .env (or the shell) without editing this file:
+#   PROD_DATABASE_URL  full target connection string (db name = gambatte)
+#   ADMIN_DATABASE_URL maintenance connection used only to CREATE the database
+#                      (defaults, inside ensure-db, to the same server's "postgres" db)
+services:
+  # One-shot: create the gambatte database if missing, apply migrations, exit.
+  migrate:
+    build:
+      context: .
+      target: builder
+    image: ghcr.io/rjongco/gambatte-migrate:latest
+    container_name: gambatte_migrate
+    command: npm run db:setup
+    environment:
+      DATABASE_URL: ${PROD_DATABASE_URL:-postgres://postgres:postgres@192.168.0.74:5432/gambatte}
+      # Maintenance db the postgres role can already reach; used only to issue
+      # CREATE DATABASE. Defaults inside ensure-db to <server>/postgres.
+      ADMIN_DATABASE_URL: ${ADMIN_DATABASE_URL:-postgres://postgres:postgres@192.168.0.74:5432/postgres}
+
+  app:
+    build:
+      context: .
+      target: runner
+    image: ghcr.io/rjongco/gambatte-app:latest
+    container_name: gambatte_app
+    restart: unless-stopped
+    ports:
+      - "7431:7431"
+    environment:
+      # Standalone server listens on 7431 (matches the image default; explicit here).
+      PORT: "7431"
+      DATABASE_URL: ${PROD_DATABASE_URL:-postgres://postgres:postgres@192.168.0.74:5432/gambatte}
+      # Login gate (set both in the host .env to require a login). AUTH_SECRET
+      # is optional — it signs the session cookie and defaults to the password.
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # Trello secrets are interpolated from the host .env at run time — they are
+      # NOT baked into the image (.env is in .dockerignore) and stay server-side.
+      TRELLO_KEY: ${TRELLO_KEY:-}
+      TRELLO_TOKEN: ${TRELLO_TOKEN:-}
+      TRELLO_BOARD_ID: ${TRELLO_BOARD_ID:-}
+      TRELLO_LIST_IDS: ${TRELLO_LIST_IDS:-}
+      TRELLO_MEMBER_ID: ${TRELLO_MEMBER_ID:-}
+      # Google Sheets export (server-side only). Interpolated from the host .env at
+      # run time, NOT baked into the image. GOOGLE_PRIVATE_KEY stays single-line
+      # with literal \n escapes (see .env.example).
+      GOOGLE_SHEETS_SPREADSHEET_ID: ${GOOGLE_SHEETS_SPREADSHEET_ID:-}
+      GOOGLE_SHEETS_TEMPLATE_TITLE: ${GOOGLE_SHEETS_TEMPLATE_TITLE:-Template}
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}
+      GOOGLE_PRIVATE_KEY: ${GOOGLE_PRIVATE_KEY:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully

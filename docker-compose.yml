@@ -25,7 +25,8 @@ services:
       target: builder
     image: ghcr.io/rjongco/gambatte-migrate:latest
     container_name: gambatte_migrate
-    command: npm run db:migrate
+    # Create the gambatte database if missing, then apply migrations.
+    command: npm run db:setup
     environment:
       DATABASE_URL: postgres://gambatte:gambatte@db:5432/gambatte
     depends_on:
@@ -40,10 +41,15 @@ services:
     container_name: gambatte_app
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "7431:7431"
     environment:
       # DB lives on the compose network, not localhost.
       DATABASE_URL: postgres://gambatte:gambatte@db:5432/gambatte
+      # Login gate (set both in the host .env to require a login). AUTH_SECRET
+      # is optional — it signs the session cookie and defaults to the password.
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:-}
       # Trello secrets are interpolated from the host .env at run time — they
       # are NOT baked into the image (.env is in .dockerignore) and stay
       # server-side inside the container.

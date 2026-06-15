@@ -24,7 +24,7 @@ services:
   app:
     build:
       target: dev
-    command: ["npx", "next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+    command: ["npx", "next", "dev", "-H", "0.0.0.0", "-p", "7431"]
     restart: "no"
     environment:
       # DB lives on the compose network, not localhost.

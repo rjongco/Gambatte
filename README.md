@@ -30,6 +30,24 @@ only** and never reach the browser.
 cp .env.example .env
 ```
 
+### Login gate (optional)
+
+The app has **no user system**. To keep a deployment from being wide open, set a
+single username/password in `.env`; [proxy.ts](proxy.ts) then redirects anyone
+without a valid session to a `/login` page. A successful login mints a **signed,
+HttpOnly cookie that lasts 7 days** (no database — the token is an HMAC, so it
+can't be forged). A **Sign out** button appears in the nav when the gate is on.
+
+| Variable | Purpose |
+|---|---|
+| `BASIC_AUTH_USER` | Login username |
+| `BASIC_AUTH_PASSWORD` | Login password |
+| `AUTH_SECRET` | *(optional)* signs the session cookie; defaults to the password |
+
+Set **both** credentials to enable the gate; leave either blank to disable it
+(e.g. local dev). Changing the password (or `AUTH_SECRET`) invalidates all
+existing sessions.
+
 ### Trello (required)
 
 | Variable | Purpose |
@@ -74,7 +92,7 @@ One-time setup:
 npm install
 docker compose up -d db          # Postgres on :5432
 npm run db:migrate               # apply Drizzle migrations
-npm run dev                      # http://localhost:3000
+npm run dev                      # http://localhost:7431
 ```
 
 ### Fully containerized
@@ -87,7 +105,7 @@ docker compose up --build
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 ```
 
-The app is served on <http://localhost:3000>.
+The app is served on <http://localhost:7431>.
 
 ## Usage
 

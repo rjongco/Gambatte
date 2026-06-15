@@ -9,9 +9,20 @@ interface Props {
   onToday: () => void;
   onOpenExport: () => void;
   onOpenSettings: () => void;
+  onLogout?: () => void;
 }
 
-export function DateNavBar({ days, onPrev, onNext, onToday, onOpenExport, onOpenSettings }: Props) {
+export function DateNavBar({
+  days,
+  onPrev,
+  onNext,
+  onToday,
+  onOpenExport,
+  onOpenSettings,
+  onLogout,
+}: Props) {
+  const btnClass =
+    "rounded px-2 py-1 text-xs text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]";
   return (
     <header className="flex items-center gap-3 border-b border-[var(--color-line)] px-4 py-2.5">
       <h1 className="text-sm font-semibold tracking-tight text-[var(--color-text)]">
@@ -37,12 +48,14 @@ export function DateNavBar({ days, onPrev, onNext, onToday, onOpenExport, onOpen
         >
           Submit
         </button>
-        <button
-          onClick={onOpenSettings}
-          className="rounded px-2 py-1 text-xs text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text)]"
-        >
+        <button onClick={onOpenSettings} className={btnClass}>
           Settings
         </button>
+        {onLogout && (
+          <button onClick={onLogout} className={btnClass}>
+            Sign out
+          </button>
+        )}
       </div>
     </header>
   );
