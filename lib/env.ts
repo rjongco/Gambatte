@@ -10,6 +10,9 @@ export function trelloEnv() {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  // Optional: the list whose cards are treated as completed (locked/painted).
+  // Must also appear in TRELLO_LIST_IDS so the cards get fetched at all.
+  const completedListId = process.env.TRELLO_COMPLETED_LIST_ID ?? "";
   const missing = Object.entries({ key, token, boardId })
     .filter(([, v]) => !v)
     .map(([k]) => k);
@@ -18,7 +21,17 @@ export function trelloEnv() {
       `Missing Trello env: ${missing.join(", ")}. See .env.example and GET /api/trello/meta.`,
     );
   }
-  return { key: key!, token: token!, boardId: boardId!, listIds, memberId };
+  return { key: key!, token: token!, boardId: boardId!, listIds, memberId, completedListId };
+}
+
+/**
+ * Single source of truth for the "completed" lock: a card/bar is completed iff
+ * its card currently sits in the configured Completed list. Reads the env var
+ * directly (never throws) so it is safe to call from any server context.
+ */
+export function isCompleted(idList: string | null): boolean {
+  const completedListId = process.env.TRELLO_COMPLETED_LIST_ID ?? "";
+  return !!completedListId && idList === completedListId;
 }
 
 /** Server-only Google Sheets configuration. Throws if a required value is missing. */

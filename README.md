@@ -101,8 +101,9 @@ npm run dev                      # http://localhost:7431
 # Production image (builds the standalone server, runs migrations, then the app):
 docker compose up --build
 
-# Dev with live reload (bind-mounted source):
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Dev with live reload (bind-mounted source, self-contained — reuses the
+# gambatte_gambatte_pgdata volume if present, else creates + migrates it):
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 The app is served on <http://localhost:7431>.

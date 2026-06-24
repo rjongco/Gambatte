@@ -1,33 +1,60 @@
-# Dev override: bind-mount the source and run `next dev` with live reload.
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
-# (db + migrate from the base file still apply; only their images/commands change.)
+# Dev: single self-contained stack with live reload (no base file needed).
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Volume: reuses the existing `gambatte_gambatte_pgdata` volume if present, and
+# creates it (then migrates) from scratch if not — see the `volumes:` block.
+# The source is bind-mounted, so `next dev` reads the host .env directly for the
+# Trello/Google secrets; only DATABASE_URL is overridden here so the app/migrate
+# containers reach Postgres on the compose network instead of localhost.
 
 services:
   db:
-      image: postgres:16-alpine
-      container_name: gambatte_db
-      restart: unless-stopped
-      environment:
-        POSTGRES_USER: gambatte
-        POSTGRES_PASSWORD: gambatte
-        POSTGRES_DB: gambatte
-      ports:
-        - "5432:5432"
-      volumes:
-        - gambatte_pgdata:/var/lib/postgresql/data
-  # Run migrations from the lighter `dev` image instead of a full prod build.
+    image: postgres:16-alpine
+    container_name: gambatte_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gambatte
+      POSTGRES_PASSWORD: gambatte
+      POSTGRES_DB: gambatte
+    ports:
+      - "5432:5432"
+    volumes:
+      - gambatte_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gambatte -d gambatte"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: ensure the DB exists, apply Drizzle migrations, then exit. Built
+  # from the lighter `dev` stage (it still has drizzle-kit + the migration files,
+  # and skips the full production `npm run build`).
   migrate:
     build:
+      context: .
       target: dev
-    command: npm run db:migrate
+    container_name: gambatte_migrate
+    command: npm run db:setup
+    environment:
+      DATABASE_URL: postgres://gambatte:gambatte@db:5432/gambatte
+    depends_on:
+      db:
+        condition: service_healthy
 
   app:
     build:
+      context: .
       target: dev
+    container_name: gambatte_app
     command: ["npx", "next", "dev", "-H", "0.0.0.0", "-p", "7431"]
     restart: "no"
+    ports:
+      - "7431:7431"
     environment:
-      # DB lives on the compose network, not localhost.
+      # Override the host .env's localhost DATABASE_URL — Postgres is reachable as
+      # `db` on the compose network. Trello/Google secrets are read by `next dev`
+      # straight from the bind-mounted host .env, so they need not be repeated here.
       DATABASE_URL: postgres://gambatte:gambatte@db:5432/gambatte
       NODE_ENV: development
     volumes:
@@ -37,3 +64,14 @@ services:
       # (anonymous volumes shadow the bind mount, avoiding host/OS mismatches).
       - /app/node_modules
       - /app/.next
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+# Pinning `name` makes Compose use this exact volume regardless of project name:
+# reused if it already exists, created on first `up` if not.
+volumes:
+  gambatte_pgdata:
+    name: gambatte_gambatte_pgdata

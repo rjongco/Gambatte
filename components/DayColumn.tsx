@@ -66,6 +66,12 @@ export function DayColumn({
   const bodyHeight = Math.max(laneCount, MIN_BODY_ROWS) * ROW_HEIGHT;
   const isDropTarget = drag?.overDay === day;
 
+  // Out cannot drop below the latest completed (painted) bar on this day.
+  const minOut = bars.reduce(
+    (m, b) => (b.placement.completed ? Math.max(m, b.placement.endMinute) : m),
+    dayStart + 30,
+  );
+
   // hour ticks for this column's own scale, thinned so labels never collide
   const pxPerHour = 60 * pxPerMinute;
   const stepH = pxPerHour >= 46 ? 1 : pxPerHour >= 24 ? 2 : pxPerHour >= 16 ? 3 : 4;
@@ -85,7 +91,7 @@ export function DayColumn({
       {/* header */}
       <div className="flex items-center justify-between gap-2 px-3 py-2">
         <span className="text-sm font-medium text-[var(--color-text)]">{dayLabel(day)}</span>
-        <OutControl out={out} dayStart={dayStart} dayEnd={dayEnd} onChange={(v) => onSetOut(day, v)} />
+        <OutControl out={out} dayStart={dayStart} dayEnd={dayEnd} minOut={minOut} onChange={(v) => onSetOut(day, v)} />
       </div>
 
       {/* ruler */}
@@ -143,6 +149,7 @@ export function DayColumn({
               startMinute={placement.startMinute}
               endMinute={placement.endMinute}
               rowIndex={rowIndex}
+              completed={placement.completed}
               ctx={ctx}
               onCommit={onCommit}
               onDelete={onDelete}

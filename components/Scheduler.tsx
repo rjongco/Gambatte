@@ -97,7 +97,10 @@ export function Scheduler({ authEnabled = false }: { authEnabled?: boolean }) {
           plottedIds={windowQ.data?.plottedCardIds ?? []}
           loading={cardsQ.isLoading}
           error={cardsQ.isError ? (cardsQ.error as Error).message : undefined}
-          onRefresh={() => qc.invalidateQueries({ queryKey: ["cards"] })}
+          onRefresh={() => {
+            qc.invalidateQueries({ queryKey: ["cards"] });
+            invalidateWindow(); // pick up completed-status changes on the bars too
+          }}
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -149,6 +152,7 @@ export function Scheduler({ authEnabled = false }: { authEnabled?: boolean }) {
           onSave={(s) => saveSettings.mutate(s)}
           onResync={() => {
             qc.invalidateQueries({ queryKey: ["cards"] });
+            invalidateWindow(); // pick up completed-status changes on the bars too
             setSettingsOpen(false);
           }}
         />

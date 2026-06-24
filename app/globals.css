@@ -15,6 +15,7 @@
   --color-faint: #6b7177;
   --color-accent: #7c9cff;
   --color-accent-dim: #2a3354;
+  --color-completed: #10b981; /* locked/painted Completed marker (reads on both themes) */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -32,6 +33,7 @@ html[data-theme="day"] {
   --color-faint: #939aa3;
   --color-accent: #3b5bdb;
   --color-accent-dim: #c2cdf5;
+  --color-completed: #059669;
 }
 
 html,

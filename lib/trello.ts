@@ -2,7 +2,7 @@ import "server-only";
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { cards } from "@/db/schema";
-import { trelloEnv } from "@/lib/env";
+import { trelloEnv, isCompleted } from "@/lib/env";
 import type { Card } from "@/lib/types";
 
 const API = "https://api.trello.com/1";
@@ -78,6 +78,7 @@ export async function fetchInProgressCards(): Promise<Card[]> {
       idList: r.idList,
       idMembers: r.idMembers,
       totalMinutesWorked: r.totalMinutesWorked,
+      completed: isCompleted(r.idList),
     }));
 }
 

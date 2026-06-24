@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolve, clampToOut, type Seg } from "./resolve";
+import { resolve, clampToOut, snapIncoming, type Seg } from "./resolve";
 
 const BOUNDS = { dayStart: 480, out: 1440 };
 
@@ -31,6 +31,25 @@ describe("resolve - basics", () => {
     expect(r.toDelete).toEqual([]);
     expect(r.toUpdate).toEqual([]);
     expect(r.toInsert).toHaveLength(1);
+  });
+});
+
+describe("snapIncoming", () => {
+  it("snaps + clamps an incoming span to the day's bounds", () => {
+    expect(snapIncoming({ start: 485, end: 533 }, BOUNDS)).toEqual({ start: 480, end: 540 });
+    // clamps below dayStart and above out
+    expect(snapIncoming({ start: 400, end: 1500 }, BOUNDS)).toEqual({ start: 480, end: 1440 });
+  });
+
+  it("throws for a span at/after Out or shorter than the 30-min minimum", () => {
+    expect(() => snapIncoming({ start: 1440, end: 1470 }, BOUNDS)).toThrow();
+    expect(() => snapIncoming({ start: 600, end: 605 }, BOUNDS)).toThrow();
+  });
+
+  it("agrees with what resolve() would place (shared snapping)", () => {
+    const span = snapIncoming({ start: 605, end: 655 }, BOUNDS);
+    const r = resolve({ cardId: "A", start: 605, end: 655 }, [], BOUNDS);
+    expect(r.toInsert[0]).toMatchObject({ startMinute: span.start, endMinute: span.end });
   });
 });
 

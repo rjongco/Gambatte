@@ -2,8 +2,28 @@ import "server-only";
 import { and, eq, gte, lte, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { placements, daySettings, appSettings, cards } from "@/db/schema";
-import { resolve, clampToOut, type Seg, type ResolveResult, type Bounds } from "@/lib/resolve";
+import {
+  resolve,
+  clampToOut,
+  snapIncoming,
+  ResolveError,
+  type Seg,
+  type ResolveResult,
+  type Bounds,
+} from "@/lib/resolve";
+import { isCompleted } from "@/lib/env";
 import type { ExportRow, Placement, Settings, WindowData } from "@/lib/types";
+
+/** Half-open overlap test: do [aStart,aEnd) and [bStart,bEnd) intersect? */
+function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+
+/** Whether a card currently sits in the Completed list (locked). */
+async function cardCompleted(cardId: string): Promise<boolean> {
+  const [row] = await db.select({ idList: cards.idList }).from(cards).where(eq(cards.id, cardId));
+  return row ? isCompleted(row.idList) : false;
+}
 
 /** Ensure the singleton settings row exists, return it. */
 export async function getSettings(): Promise<Settings> {
@@ -46,10 +66,26 @@ export async function boundsForDay(day: string): Promise<Bounds> {
   return { dayStart: settings.dayStartMinute, out: out ?? settings.dayEndMinute };
 }
 
-/** Raw placements for a single day, shaped for resolve(). */
+/** Raw placements for a single day, shaped for resolve() + tagged completed. */
 export async function getDaySegs(day: string): Promise<Seg[]> {
-  const rows = await db.select().from(placements).where(eq(placements.day, day));
-  return rows.map((r) => ({ id: r.id, cardId: r.cardId, start: r.startMinute, end: r.endMinute }));
+  const rows = await db
+    .select({
+      id: placements.id,
+      cardId: placements.cardId,
+      start: placements.startMinute,
+      end: placements.endMinute,
+      idList: cards.idList,
+    })
+    .from(placements)
+    .innerJoin(cards, eq(placements.cardId, cards.id))
+    .where(eq(placements.day, day));
+  return rows.map((r) => ({
+    id: r.id,
+    cardId: r.cardId,
+    start: r.start,
+    end: r.end,
+    completed: isCompleted(r.idList),
+  }));
 }
 
 /** Placements (joined with card name) + Out times for a date window. */
@@ -62,6 +98,7 @@ export async function getWindowData(from: string, to: string): Promise<WindowDat
       day: placements.day,
       startMinute: placements.startMinute,
       endMinute: placements.endMinute,
+      idList: cards.idList,
     })
     .from(placements)
     .innerJoin(cards, eq(placements.cardId, cards.id))
@@ -80,7 +117,17 @@ export async function getWindowData(from: string, to: string): Promise<WindowDat
     .from(placements);
   const plottedCardIds = plotted.map((p) => p.cardId);
 
-  return { placements: rows as Placement[], outByDay, plottedCardIds };
+  const placementsOut: Placement[] = rows.map((r) => ({
+    id: r.id,
+    cardId: r.cardId,
+    cardName: r.cardName,
+    day: r.day,
+    startMinute: r.startMinute,
+    endMinute: r.endMinute,
+    completed: isCompleted(r.idList),
+  }));
+
+  return { placements: placementsOut, outByDay, plottedCardIds };
 }
 
 /** Apply a ResolveResult for a day in one transaction, then recompute affected totals. */
@@ -131,8 +178,19 @@ export async function placeBar(input: {
   startMinute: number;
   endMinute: number;
 }): Promise<void> {
+  // Completed cards are locked: no new time may be plotted for them.
+  if (await cardCompleted(input.cardId)) {
+    throw new ResolveError("This task is completed and locked.");
+  }
   const bounds = await boundsForDay(input.day);
-  const existing = await getDaySegs(input.day);
+  const segs = await getDaySegs(input.day);
+  // Reject if the snapped span would overlap a completed (painted) bar.
+  const span = snapIncoming({ start: input.startMinute, end: input.endMinute }, bounds);
+  if (segs.some((s) => s.completed && overlaps(span.start, span.end, s.start, s.end))) {
+    throw new ResolveError("Can't plot over a completed task.");
+  }
+  // Completed bars are obstacles, never carved: keep them out of resolve().
+  const existing = segs.filter((s) => !s.completed);
   const result = resolve(
     { cardId: input.cardId, start: input.startMinute, end: input.endMinute },
     existing,
@@ -147,8 +205,22 @@ export async function editBar(
 ): Promise<void> {
   const [row] = await db.select().from(placements).where(eq(placements.id, id));
   if (!row) throw new Error("Placement not found");
+  // A completed bar is painted & immutable.
+  if (await cardCompleted(row.cardId)) {
+    throw new ResolveError("This task is completed and locked.");
+  }
   const bounds = await boundsForDay(row.day);
-  const existing = await getDaySegs(row.day);
+  const segs = await getDaySegs(row.day);
+  // Reject a move/resize that would overlap a completed (painted) bar.
+  const span = snapIncoming({ start: patch.startMinute, end: patch.endMinute }, bounds);
+  if (
+    segs.some(
+      (s) => s.completed && s.id !== id && overlaps(span.start, span.end, s.start, s.end),
+    )
+  ) {
+    throw new ResolveError("Can't plot over a completed task.");
+  }
+  const existing = segs.filter((s) => !s.completed);
   const result = resolve(
     { id, cardId: row.cardId, start: patch.startMinute, end: patch.endMinute },
     existing,
@@ -158,6 +230,15 @@ export async function editBar(
 }
 
 export async function deleteBar(id: string): Promise<void> {
+  const [target] = await db
+    .select({ cardId: placements.cardId })
+    .from(placements)
+    .where(eq(placements.id, id));
+  if (!target) return;
+  // A completed bar is painted & immutable — cannot be removed.
+  if (await cardCompleted(target.cardId)) {
+    throw new ResolveError("This task is completed and locked.");
+  }
   const [row] = await db
     .delete(placements)
     .where(eq(placements.id, id))
@@ -193,9 +274,17 @@ export async function getExportRows(from: string, to: string): Promise<ExportRow
 }
 
 export async function applyOut(day: string, outMinute: number | null): Promise<void> {
+  const segs = await getDaySegs(day);
+  // Out cannot be set before a completed (painted) bar ends, or it would render
+  // past the cell edge; completed bars are also never clamped/deleted.
+  const latestCompletedEnd = segs
+    .filter((s) => s.completed)
+    .reduce((m, s) => Math.max(m, s.end), 0);
+  if (outMinute !== null && outMinute < latestCompletedEnd) {
+    throw new ResolveError("Out can't be earlier than a completed task's end.");
+  }
   await setOutMinute(day, outMinute);
   const bounds = await boundsForDay(day);
-  const existing = await getDaySegs(day);
-  const result = clampToOut(existing, bounds);
+  const result = clampToOut(segs.filter((s) => !s.completed), bounds);
   await applyResult(day, result);
 }

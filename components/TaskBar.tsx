@@ -14,6 +14,7 @@ interface Props {
   startMinute: number;
   endMinute: number;
   rowIndex: number;
+  completed: boolean;
   ctx: ColScaleCtx;
   onCommit: (id: string, patch: { startMinute: number; endMinute: number }) => void;
   onDelete: (id: string) => void;
@@ -28,6 +29,7 @@ export function TaskBar({
   startMinute,
   endMinute,
   rowIndex,
+  completed,
   ctx,
   onCommit,
   onDelete,
@@ -56,6 +58,7 @@ export function TaskBar({
   const height = ROW_HEIGHT - BAR_GAP * 2;
 
   function begin(kind: Gesture, e: React.PointerEvent) {
+    if (completed) return; // painted & immutable — no move/resize
     e.preventDefault();
     e.stopPropagation();
     try {
@@ -104,7 +107,11 @@ export function TaskBar({
   return (
     <>
     <div
-      className="group absolute flex items-center overflow-hidden rounded-md border-l-2 text-[11px] leading-tight shadow-sm shadow-black/30 select-none touch-none transition-[box-shadow] hover:shadow-md hover:shadow-black/40"
+      className={`group absolute flex items-center overflow-hidden rounded-md border-l-2 text-[11px] leading-tight select-none touch-none ${
+        completed
+          ? "opacity-70"
+          : "shadow-sm shadow-black/30 transition-[box-shadow] hover:shadow-md hover:shadow-black/40"
+      }`}
       style={{
         left,
         width,
@@ -113,46 +120,52 @@ export function TaskBar({
         background: color.fill,
         borderColor: color.edge,
         color: color.text,
-        cursor: gesture.current?.kind === "move" ? "grabbing" : "grab",
+        cursor: completed ? "default" : gesture.current?.kind === "move" ? "grabbing" : "grab",
       }}
-      title={label}
+      title={completed ? `${label} (completed — locked)` : label}
       onPointerDown={(e) => begin("move", e)}
       onPointerMove={onMove}
       onPointerUp={end_}
     >
-      {/* left resize handle */}
-      <span
-        className="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize"
-        onPointerDown={(e) => begin("resize-l", e)}
-        onPointerMove={onMove}
-        onPointerUp={end_}
-      />
+      {/* left resize handle (omitted when completed) */}
+      {!completed && (
+        <span
+          className="absolute left-0 top-0 z-10 h-full w-2 cursor-ew-resize"
+          onPointerDown={(e) => begin("resize-l", e)}
+          onPointerMove={onMove}
+          onPointerUp={end_}
+        />
+      )}
       <span className="truncate px-2 font-medium">{cardName}</span>
       <span className="tabular ml-auto hidden shrink-0 px-1.5 opacity-70 group-hover:inline">
         {formatMinute(start)}–{formatMinute(end)}
       </span>
-      {/* right resize handle */}
-      <span
-        className="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize"
-        onPointerDown={(e) => begin("resize-r", e)}
-        onPointerMove={onMove}
-        onPointerUp={end_}
-      />
-      {/* delete (small corner control, stays clear of the resize handle) */}
-      <button
-        className="absolute right-1 top-1 z-20 hidden h-4 w-4 items-center justify-center rounded-full bg-black/40 text-[11px] leading-none hover:bg-black/70 group-hover:flex"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete(id);
-        }}
-        aria-label="Delete"
-      >
-        ×
-      </button>
+      {/* right resize handle (omitted when completed) */}
+      {!completed && (
+        <span
+          className="absolute right-0 top-0 z-10 h-full w-2 cursor-ew-resize"
+          onPointerDown={(e) => begin("resize-r", e)}
+          onPointerMove={onMove}
+          onPointerUp={end_}
+        />
+      )}
+      {/* delete (omitted when completed — painted & immutable) */}
+      {!completed && (
+        <button
+          className="absolute right-1 top-1 z-20 hidden h-4 w-4 items-center justify-center rounded-full bg-black/40 text-[11px] leading-none hover:bg-black/70 group-hover:flex"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(id);
+          }}
+          aria-label="Delete"
+        >
+          ×
+        </button>
+      )}
     </div>
     {preview && (
       <div

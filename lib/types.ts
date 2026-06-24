@@ -5,6 +5,8 @@ export interface Card {
   idList: string | null;
   idMembers: string[];
   totalMinutesWorked: number;
+  /** True iff the card currently sits in the configured Completed list (locked). */
+  completed: boolean;
 }
 
 export interface Placement {
@@ -14,6 +16,8 @@ export interface Placement {
   day: string; // YYYY-MM-DD
   startMinute: number;
   endMinute: number;
+  /** True iff the card is in the Completed list — bar is painted & immutable. */
+  completed: boolean;
 }
 
 export interface Settings {

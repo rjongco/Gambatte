@@ -5,6 +5,9 @@ export interface Seg {
   cardId: string;
   start: number;
   end: number;
+  /** When true, the segment is a completed (locked/painted) bar. Callers may use
+   *  this to keep it out of resolve()'s `existing`; resolve() itself ignores it. */
+  completed?: boolean;
 }
 
 export interface Bounds {
@@ -98,15 +101,28 @@ function diff(result: WSeg[], existing: Seg[], mergedAway: string[]): ResolveRes
 }
 
 /**
+ * Snap + clamp + validate an incoming span against the day's bounds. Shared by
+ * resolve() and the overlap pre-checks in the store so the span tested for a
+ * completed-bar collision is exactly the span that would be placed.
+ */
+export function snapIncoming(
+  incoming: { start: number; end: number },
+  bounds: Bounds,
+): { start: number; end: number } {
+  const { dayStart, out } = bounds;
+  const start = Math.max(snapTo30(incoming.start), dayStart);
+  const end = Math.min(snapTo30(incoming.end), out);
+  if (start >= out) throw new ResolveError("Bar starts at or after the Out time.");
+  if (end - start < MIN_DURATION) throw new ResolveError("Bar is shorter than the 30-minute minimum.");
+  return { start, end };
+}
+
+/**
  * Place/move/resize `incoming` against `existing` (all placements on that day),
  * enforcing one-task-per-instant via split & shrink, the Out cap, and same-card merge.
  */
 export function resolve(incoming: Seg, existing: Seg[], bounds: Bounds): ResolveResult {
-  const { dayStart, out } = bounds;
-  const s = Math.max(snapTo30(incoming.start), dayStart);
-  const e = Math.min(snapTo30(incoming.end), out);
-  if (s >= out) throw new ResolveError("Bar starts at or after the Out time.");
-  if (e - s < MIN_DURATION) throw new ResolveError("Bar is shorter than the 30-minute minimum.");
+  const { start: s, end: e } = snapIncoming(incoming, bounds);
 
   const result: WSeg[] = [{ id: incoming.id, cardId: incoming.cardId, start: s, end: e }];
 

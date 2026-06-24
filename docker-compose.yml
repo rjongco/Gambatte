@@ -57,6 +57,7 @@ services:
       TRELLO_TOKEN: ${TRELLO_TOKEN:-}
       TRELLO_BOARD_ID: ${TRELLO_BOARD_ID:-}
       TRELLO_LIST_IDS: ${TRELLO_LIST_IDS:-}
+      TRELLO_COMPLETED_LIST_ID: ${TRELLO_COMPLETED_LIST_ID:-}
       TRELLO_MEMBER_ID: ${TRELLO_MEMBER_ID:-}
       # Google Sheets export (server-side only). Interpolated from the host .env at
       # run time, NOT baked into the image. GOOGLE_PRIVATE_KEY stays single-line

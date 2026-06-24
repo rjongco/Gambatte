@@ -6,12 +6,15 @@ interface Props {
   out: number; // effective out (defaults to dayEnd)
   dayStart: number;
   dayEnd: number;
+  /** Lowest selectable Out: dayStart+30, raised to the latest completed bar's end. */
+  minOut: number;
   onChange: (outMinute: number | null) => void;
 }
 
-export function OutControl({ out, dayStart, dayEnd, onChange }: Props) {
+export function OutControl({ out, dayStart, dayEnd, minOut, onChange }: Props) {
   const options: number[] = [];
-  for (let m = dayStart + 30; m <= dayEnd; m += 30) options.push(m);
+  const first = Math.max(dayStart + 30, minOut);
+  for (let m = first; m <= dayEnd; m += 30) options.push(m);
 
   return (
     <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-muted)]">
