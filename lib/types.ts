@@ -5,8 +5,14 @@ export interface Card {
   idList: string | null;
   idMembers: string[];
   totalMinutesWorked: number;
-  /** True iff the card currently sits in the configured Completed list (locked). */
+  /** True iff completed/locked — for a task-card, checked OR parent is Completed. */
   completed: boolean;
+  /** Set iff this is a task-card (a "Tasks" checklist item); its parent card id. */
+  parentCardId: string | null;
+  /** Whether the checklist item is checked (task-cards only). */
+  checkState: boolean;
+  /** Checklist position for ordering task-cards under their parent. */
+  checkPos: number | null;
 }
 
 export interface Placement {
@@ -16,8 +22,12 @@ export interface Placement {
   day: string; // YYYY-MM-DD
   startMinute: number;
   endMinute: number;
-  /** True iff the card is in the Completed list — bar is painted & immutable. */
+  /** True iff completed/locked — bar is painted & immutable. */
   completed: boolean;
+  /** Set iff the plotted card is a task-card; its parent card id (for the hue). */
+  parentCardId: string | null;
+  /** The parent card's name, for the "{PARENT}:{TASK}" bar label (task-cards only). */
+  parentName: string | null;
 }
 
 export interface Settings {
@@ -39,7 +49,8 @@ export type LaneMap = Record<string, Record<string, number>>;
 
 /** One aggregated task row destined for the Google Sheet. */
 export interface ExportRow {
-  task: string; // card name -> "Task" column
+  task: string; // parent name (task-card) or card name -> "Task" column
+  description: string; // task item text (task-card) or "" -> "Description" column
   startDate: string; // earliest plotted day in range (YYYY-MM-DD)
   endDate: string; // latest plotted day in range (YYYY-MM-DD)
   actualHours: number; // sum of segment minutes / 60, 2 decimals

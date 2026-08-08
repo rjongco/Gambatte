@@ -8,6 +8,13 @@
       "when": 1781350629346,
       "tag": "0000_violet_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786156942920,
+      "tag": "0001_wide_tomas",
+      "breakpoints": true
     }
   ]
 }

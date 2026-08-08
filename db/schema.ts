@@ -2,21 +2,31 @@ import {
   pgTable,
   text,
   integer,
+  real,
+  boolean,
   date,
   timestamp,
   jsonb,
   uuid,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
-/** Trello card cache + denormalized total time worked. */
+/** Trello card cache + denormalized total time worked. A row is a "task-card"
+ *  (a checklist item under a card's "Tasks" checklist) iff parentCardId is set. */
 export const cards = pgTable("cards", {
-  id: text("id").primaryKey(), // Trello card id
+  id: text("id").primaryKey(), // Trello card id (or checkItem id for task-cards)
   name: text("name").notNull(),
   shortUrl: text("short_url"),
   idList: text("id_list"),
   idMembers: jsonb("id_members").$type<string[]>().default([]).notNull(),
   totalMinutesWorked: integer("total_minutes_worked").default(0).notNull(),
+  // Task-card fields (null/false for normal cards):
+  parentCardId: text("parent_card_id").references((): AnyPgColumn => cards.id, {
+    onDelete: "cascade",
+  }),
+  checkState: boolean("check_state").default(false).notNull(), // checklist item checked?
+  checkPos: real("check_pos"), // checklist position (for natural ordering)
   lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

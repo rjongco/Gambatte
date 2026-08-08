@@ -1,5 +1,6 @@
 import "server-only";
 import { and, eq, gte, lte, inArray, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { placements, daySettings, appSettings, cards } from "@/db/schema";
 import {
@@ -11,18 +12,31 @@ import {
   type ResolveResult,
   type Bounds,
 } from "@/lib/resolve";
-import { isCompleted } from "@/lib/env";
+import { deriveCompleted } from "@/lib/env";
 import type { ExportRow, Placement, Settings, WindowData } from "@/lib/types";
+
+/** Parent-card alias for self-joins (task-card → its parent card). */
+const parent = alias(cards, "parent");
 
 /** Half-open overlap test: do [aStart,aEnd) and [bStart,bEnd) intersect? */
 function overlaps(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
 
-/** Whether a card currently sits in the Completed list (locked). */
+/** Whether a card/task-card is completed & locked (checked, or its list / parent's
+ *  list is the Completed list). */
 async function cardCompleted(cardId: string): Promise<boolean> {
-  const [row] = await db.select({ idList: cards.idList }).from(cards).where(eq(cards.id, cardId));
-  return row ? isCompleted(row.idList) : false;
+  const [row] = await db
+    .select({
+      idList: cards.idList,
+      parentCardId: cards.parentCardId,
+      checkState: cards.checkState,
+      parentIdList: parent.idList,
+    })
+    .from(cards)
+    .leftJoin(parent, eq(cards.parentCardId, parent.id))
+    .where(eq(cards.id, cardId));
+  return row ? deriveCompleted(row) : false;
 }
 
 /** Ensure the singleton settings row exists, return it. */
@@ -75,16 +89,20 @@ export async function getDaySegs(day: string): Promise<Seg[]> {
       start: placements.startMinute,
       end: placements.endMinute,
       idList: cards.idList,
+      parentCardId: cards.parentCardId,
+      checkState: cards.checkState,
+      parentIdList: parent.idList,
     })
     .from(placements)
     .innerJoin(cards, eq(placements.cardId, cards.id))
+    .leftJoin(parent, eq(cards.parentCardId, parent.id))
     .where(eq(placements.day, day));
   return rows.map((r) => ({
     id: r.id,
     cardId: r.cardId,
     start: r.start,
     end: r.end,
-    completed: isCompleted(r.idList),
+    completed: deriveCompleted(r),
   }));
 }
 
@@ -99,9 +117,14 @@ export async function getWindowData(from: string, to: string): Promise<WindowDat
       startMinute: placements.startMinute,
       endMinute: placements.endMinute,
       idList: cards.idList,
+      parentCardId: cards.parentCardId,
+      checkState: cards.checkState,
+      parentIdList: parent.idList,
+      parentName: parent.name,
     })
     .from(placements)
     .innerJoin(cards, eq(placements.cardId, cards.id))
+    .leftJoin(parent, eq(cards.parentCardId, parent.id))
     .where(and(gte(placements.day, from), lte(placements.day, to)));
 
   const dayRows = await db
@@ -124,7 +147,9 @@ export async function getWindowData(from: string, to: string): Promise<WindowDat
     day: r.day,
     startMinute: r.startMinute,
     endMinute: r.endMinute,
-    completed: isCompleted(r.idList),
+    completed: deriveCompleted(r),
+    parentCardId: r.parentCardId,
+    parentName: r.parentCardId ? r.parentName : null,
   }));
 
   return { placements: placementsOut, outByDay, plottedCardIds };
@@ -254,19 +279,25 @@ export async function deleteBar(id: string): Promise<void> {
 export async function getExportRows(from: string, to: string): Promise<ExportRow[]> {
   const rows = await db
     .select({
-      task: cards.name,
+      name: cards.name,
+      parentCardId: cards.parentCardId,
+      parentName: parent.name,
       startDate: sql<string>`min(${placements.day})`,
       endDate: sql<string>`max(${placements.day})`,
       totalMinutes: sql<number>`sum(${placements.endMinute} - ${placements.startMinute})`,
     })
     .from(placements)
     .innerJoin(cards, eq(placements.cardId, cards.id))
+    .leftJoin(parent, eq(cards.parentCardId, parent.id))
     .where(and(gte(placements.day, from), lte(placements.day, to)))
-    .groupBy(placements.cardId, cards.name)
+    .groupBy(placements.cardId, cards.name, cards.parentCardId, parent.name)
     .orderBy(sql`min(${placements.day})`);
 
+  // Task-card → Task col = parent name, Description col = task text.
+  // Normal card → Task col = card name, Description blank.
   return rows.map((r) => ({
-    task: r.task,
+    task: r.parentCardId ? (r.parentName ?? r.name) : r.name,
+    description: r.parentCardId ? r.name : "",
     startDate: r.startDate,
     endDate: r.endDate,
     actualHours: Math.round((Number(r.totalMinutes) / 60) * 100) / 100,

@@ -11,6 +11,8 @@ interface Props {
   id: string;
   cardId: string;
   cardName: string;
+  parentCardId: string | null;
+  parentName: string | null;
   startMinute: number;
   endMinute: number;
   rowIndex: number;
@@ -26,6 +28,8 @@ export function TaskBar({
   id,
   cardId,
   cardName,
+  parentCardId,
+  parentName,
   startMinute,
   endMinute,
   rowIndex,
@@ -50,7 +54,9 @@ export function TaskBar({
   const theme = useTheme();
   const start = preview?.start ?? startMinute;
   const end = preview?.end ?? endMinute;
-  const color = colorForCard(cardId, theme);
+  // Task-cards borrow the parent's hue; label reads "{PARENT}:{TASK}".
+  const color = colorForCard(parentCardId ?? cardId, theme);
+  const displayName = parentName ? `${parentName}:${cardName}` : cardName;
 
   const left = minuteToX(start, ctx);
   const width = Math.max(2, (end - start) * ctx.pxPerMinute);
@@ -102,7 +108,7 @@ export function TaskBar({
     }
   }
 
-  const label = `${cardName} · ${formatMinute(start)}–${formatMinute(end)}`;
+  const label = `${displayName} · ${formatMinute(start)}–${formatMinute(end)}`;
 
   return (
     <>
@@ -136,7 +142,7 @@ export function TaskBar({
           onPointerUp={end_}
         />
       )}
-      <span className="truncate px-2 font-medium">{cardName}</span>
+      <span className="truncate px-2 font-medium">{displayName}</span>
       <span className="tabular ml-auto hidden shrink-0 px-1.5 opacity-70 group-hover:inline">
         {formatMinute(start)}–{formatMinute(end)}
       </span>

@@ -34,6 +34,22 @@ export function isCompleted(idList: string | null): boolean {
   return !!completedListId && idList === completedListId;
 }
 
+/**
+ * Unified completed/lock derivation covering normal cards and task-cards:
+ * - normal card (no parent): completed iff its own list is the Completed list.
+ * - task-card (has parent):  completed iff its item is checked OR its parent
+ *   card is in the Completed list.
+ */
+export function deriveCompleted(row: {
+  idList: string | null;
+  parentCardId: string | null;
+  checkState: boolean;
+  parentIdList: string | null;
+}): boolean {
+  if (row.parentCardId) return row.checkState || isCompleted(row.parentIdList);
+  return isCompleted(row.idList);
+}
+
 /** Server-only Google Sheets configuration. Throws if a required value is missing. */
 export function sheetsEnv() {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;

@@ -1,5 +1,15 @@
 import { addDays, format, parseISO } from "date-fns";
 
+/**
+ * Trello ids are Mongo ObjectIds whose first 8 hex chars encode the creation
+ * time (seconds since epoch). Returns milliseconds since epoch for sorting by
+ * "time added"; returns 0 for a malformed id so it sorts oldest/last.
+ */
+export function trelloCreatedMs(id: string): number {
+  const seconds = parseInt(id.slice(0, 8), 16);
+  return Number.isNaN(seconds) ? 0 : seconds * 1000;
+}
+
 /** Plain YYYY-MM-DD strings, single local timezone. */
 export function today(): string {
   return format(new Date(), "yyyy-MM-dd");

@@ -71,7 +71,16 @@ export async function exportRange(from: string, to: string): Promise<ExportResul
 
   const values = rows.map((row, i) => {
     const r = i + 2; // header is row 1
-    return [row.task, "", row.startDate, row.endDate, "", row.actualHours, `=E${r}-F${r}`, ""];
+    return [
+      row.task,
+      row.description,
+      row.startDate,
+      row.endDate,
+      "",
+      row.actualHours,
+      `=E${r}-F${r}`,
+      "",
+    ];
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,

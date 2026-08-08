@@ -146,6 +146,8 @@ export function DayColumn({
               id={placement.id}
               cardId={placement.cardId}
               cardName={placement.cardName}
+              parentCardId={placement.parentCardId}
+              parentName={placement.parentName}
               startMinute={placement.startMinute}
               endMinute={placement.endMinute}
               rowIndex={rowIndex}
